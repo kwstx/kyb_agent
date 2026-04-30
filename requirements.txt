@@ -25,3 +25,6 @@ neo4j
 rapidfuzz
 voyageai
 langchain-google-genai
+ray[serve]
+vllm
+prometheus_client

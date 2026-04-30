@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: kyb-agent-rollout
+  namespace: kyb-prod
+spec:
+  replicas: 5
+  strategy:
+    canary:
+      analysis:
+        templates:
+        - templateName: success-rate
+      steps:
+      - setWeight: 20
+      - pause: {duration: 10m}
+      - setWeight: 50
+      - pause: {duration: 5m}
+  selector:
+    matchLabels:
+      app: kyb-agent
+  template:
+    metadata:
+      labels:
+        app: kyb-agent
+    spec:
+      containers:
+      - name: agent
+        image: kyb-agent:v2.1.0 # Updated via CI/CD
+        ports:
+        - containerPort: 8080
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+  namespace: kyb-prod
+spec:
+  args:
+  - name: service-name
+  metrics:
+  - name: success-rate
+    interval: 2m
+    successCondition: result[0] >= 0.95
+    failureLimit: 3
+    provider:
+      prometheus:
+        address: http://prometheus-operated.kyb-monitoring:9090
+        query: |
+          sum(rate(kyb_inference_errors_total{model_type="complex"}[2m])) 
+          / 
+          sum(rate(kyb_inference_latency_seconds_count{model_type="complex"}[2m]))

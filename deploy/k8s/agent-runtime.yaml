@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kyb-prod
+  labels:
+    region: eu-west-1
+    compliance: gdpr
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kyb-agent-runtime
+  namespace: kyb-prod
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kyb-agent
+  template:
+    metadata:
+      labels:
+        app: kyb-agent
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - cpu-optimized
+              - key: topology.kubernetes.io/region
+                operator: In
+                values:
+                - eu-west-1
+      containers:
+      - name: agent
+        image: kyb-agent:latest
+        env:
+        - name: DATA_RESIDENCY_REGION
+          value: "eu-west-1"
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"

@@ -1,0 +1,71 @@
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: kyb-model-serving
+  namespace: kyb-prod
+spec:
+  serveConfigV2: |
+    applications:
+      - name: kyb_models
+        import_path: src.infrastructure.router:app
+        runtime_env:
+          pip:
+            - vllm
+            - prometheus_client
+        deployments:
+          - name: Router
+            num_replicas: 2
+          - name: ComplexModel
+            num_replicas: 1
+            ray_actor_options:
+              num_gpus: 1
+          - name: SimpleModel
+            num_replicas: 2
+            ray_actor_options:
+              num_cpus: 4
+  rayClusterConfig:
+    rayVersion: '2.9.0'
+    headGroupSpec:
+      rayStartParams:
+        dashboard-host: '0.0.0.0'
+      template:
+        spec:
+          containers:
+          - name: ray-head
+            image: rayproject/ray:2.9.0-py310-gpu
+            resources:
+              limits:
+                cpu: 2
+                memory: 8Gi
+              requests:
+                cpu: 2
+                memory: 8Gi
+    workerGroupSpecs:
+    - replicas: 2
+      minReplicas: 1
+      maxReplicas: 10
+      groupName: gpu-group
+      rayStartParams: {}
+      template:
+        spec:
+          containers:
+          - name: ray-worker
+            image: rayproject/ray:2.9.0-py310-gpu
+            resources:
+              limits:
+                cpu: 4
+                memory: 16Gi
+                nvidia.com/gpu: 1
+              requests:
+                cpu: 4
+                memory: 16Gi
+                nvidia.com/gpu: 1
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                    - gpu-optimized

@@ -1,0 +1,54 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kyb-agent-monitor
+  namespace: kyb-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: kyb-agent
+  endpoints:
+  - port: metrics
+    path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kyb-ray-monitor
+  namespace: kyb-monitoring
+spec:
+  selector:
+    matchLabels:
+      ray.io/service: kyb-model-serving
+  endpoints:
+  - port: metrics
+    path: /metrics
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-kyb
+  namespace: kyb-monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  kyb-performance.json: |
+    {
+      "title": "KYB Agent Performance",
+      "panels": [
+        {
+          "title": "Latency by Model Complexity",
+          "type": "graph",
+          "targets": [
+            { "expr": "rate(kyb_inference_latency_seconds_sum[5m]) / rate(kyb_inference_latency_seconds_count[5m])" }
+          ]
+        },
+        {
+          "title": "Token Usage",
+          "type": "bar",
+          "targets": [
+            { "expr": "sum(rate(kyb_token_usage_total[5m])) by (direction)" }
+          ]
+        }
+      ]
+    }
