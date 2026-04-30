@@ -28,3 +28,6 @@ langchain-google-genai
 ray[serve]
 vllm
 prometheus_client
+fastapi[all]
+uvicorn
+websockets
