@@ -1,93 +1,87 @@
 import asyncio
-import hashlib
 import json
+import os
+import hashlib
 import time
 from enum import Enum
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
+from dotenv import load_dotenv
 
-# Mocking the classes here for a standalone demo to avoid dependency issues
+load_dotenv()
+
+# Simplified version of the guard for standalone demo
 class RiskTier(Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
 
 class SafetyDecision(BaseModel):
-    authorized: bool
-    risk_tier: RiskTier
-    reason: str
-    action_id: str
-    signature: Optional[str] = None
-    requires_hitl: bool = False
-    explanation: Optional[str] = None
+    authorized: bool = Field(description="Whether the action is permitted by policy")
+    risk_tier: RiskTier = Field(description="The calculated risk tier (low, medium, high)")
+    reason: str = Field(description="Brief reason for the decision")
+    action_id: str = Field(description="Unique identifier for this action attempt")
+    signature: Optional[str] = Field(default=None, description="Cryptographic signature of the authorized action")
+    requires_hitl: bool = Field(default=False, description="True if human-in-the-loop review is required")
+    explanation: Optional[str] = Field(default=None, description="Detailed explanation for the user/auditor")
 
 class AutonomyGuard:
     def __init__(self, agent_id: str):
         self.agent_id = agent_id
-        self._signing_key = f"agent-secret-key-{agent_id}" 
+        self._signing_key = f"kya-secret-{agent_id}"
+        self.llm = ChatOpenAI(model="gpt-4o")
+        self.policy_rules = """
+        1. NO direct access to PII without explicit consent.
+        2. NO modification of historical audit logs.
+        3. Mandatory escalation for jurisdictional overrides.
+        """
 
     def _generate_signature(self, payload: Dict[str, Any]) -> str:
         canonical_payload = json.dumps(payload, sort_keys=True)
         return hashlib.sha256(f"{canonical_payload}:{self._signing_key}".encode()).hexdigest()
 
     async def evaluate_action(self, action_type: str, payload: Dict[str, Any]) -> SafetyDecision:
-        action_id = f"act_{int(time.time())}_{hashlib.md5(action_type.encode()).hexdigest()[:8]}"
-        is_pii_request = "pii" in action_type.lower() or "sensitive" in action_type.lower()
-        has_consent = payload.get("has_consent", False)
-        
-        if is_pii_request and not has_consent:
-            return SafetyDecision(
-                authorized=False,
-                risk_tier=RiskTier.HIGH,
-                reason="Compliance Violation: PII access requested without explicit consent.",
-                action_id=action_id,
-                explanation="Blocked attempt to access sensitive data."
-            )
-
-        risk_tier = RiskTier.LOW
-        requires_hitl = False
-        if any(t in action_type.lower() for t in ["override", "assess_risk", "final_approval"]):
-            risk_tier = RiskTier.HIGH
-            requires_hitl = True
-        elif any(t in action_type.lower() for t in ["registry", "document"]):
-            risk_tier = RiskTier.MEDIUM
-            requires_hitl = True
-        
-        auth_payload = {"agent_id": self.agent_id, "action_id": action_id, "action_type": action_type, "timestamp": time.time()}
-        signature = self._generate_signature(auth_payload)
-
-        return SafetyDecision(
-            authorized=True, risk_tier=risk_tier, reason=f"Action '{action_type}' authorized.",
-            action_id=action_id, signature=signature, requires_hitl=requires_hitl,
-            explanation=f"Auto-approved." if not requires_hitl else f"Human review required."
+        action_id = f"kya_{int(time.time())}_{hashlib.md5(action_type.encode()).hexdigest()[:6]}"
+        parser = JsonOutputParser(pydantic_object=SafetyDecision)
+        prompt = ChatPromptTemplate.from_template(
+            "SYSTEM: You are the Policy Enforcement Layer.\nPOLICIES:\n{policies}\nACTION: {action_type}\nPAYLOAD: {payload}\n{format_instructions}"
         )
+        chain = prompt | self.llm | parser
+        decision_dict = await chain.ainvoke({
+            "policies": self.policy_rules,
+            "action_type": action_type,
+            "payload": json.dumps(payload),
+            "format_instructions": parser.get_format_instructions()
+        })
+        decision_dict["action_id"] = action_id
+        decision = SafetyDecision(**decision_dict)
+        if decision.authorized:
+            auth_payload = {"agent_id": self.agent_id, "action_id": action_id, "action_type": action_type, "timestamp": time.time()}
+            decision.signature = self._generate_signature(auth_payload)
+        return decision
 
 async def run_demo():
-    print("--- AutonomyGuard Safety Layer Demo ---")
+    print("=== STANDALONE GUARDRAILS DEMO ===")
     guard = AutonomyGuard(agent_id="KYB_Investigator_001")
     
-    # Test 1: Low Risk Action
-    print("\n[Test 1] Action: initial_lookup")
-    res = await guard.evaluate_action("initial_lookup", {"has_consent": True})
-    print(f"Authorized: {res.authorized} | Risk: {res.risk_tier.value} | HITL: {res.requires_hitl}")
-    print(f"Signature: {res.signature[:32]}...")
+    scenarios = [
+        {"name": "Registry Search (Low Risk)", "type": "registry_search", "payload": {"company": "Acme Corp"}},
+        {"name": "PII Access WITH Consent (High Risk)", "type": "pii_extraction", "payload": {"company": "Acme Corp", "has_consent": True}},
+        {"name": "PII Access WITHOUT Consent (Blocked)", "type": "pii_extraction", "payload": {"company": "Acme Corp", "has_consent": False}},
+    ]
 
-    # Test 2: Medium Risk Action (Human in the Loop)
-    print("\n[Test 2] Action: transition_to_gather_registry_data")
-    res = await guard.evaluate_action("transition_to_gather_registry_data", {"has_consent": True})
-    print(f"Authorized: {res.authorized} | Risk: {res.risk_tier.value} | HITL: {res.requires_hitl}")
-    print(f"Explanation: {res.explanation}")
-
-    # Test 3: High Risk Action (Mandatory Sign-off)
-    print("\n[Test 3] Action: transition_to_assess_risk")
-    res = await guard.evaluate_action("transition_to_assess_risk", {"has_consent": True})
-    print(f"Authorized: {res.authorized} | Risk: {res.risk_tier.value} | HITL: {res.requires_hitl}")
-
-    # Test 4: Policy Violation (PII access without consent)
-    print("\n[Test 4] Action: pii_data_extraction (Consent: False)")
-    res = await guard.evaluate_action("pii_data_extraction", {"has_consent": False})
-    print(f"Authorized: {res.authorized} | Risk: {res.risk_tier.value}")
-    print(f"Reason: {res.reason}")
+    for s in scenarios:
+        print(f"\n--- {s['name']} ---")
+        decision = await guard.evaluate_action(s['type'], s['payload'])
+        print(f"Authorized: {decision.authorized}")
+        print(f"Risk Tier: {decision.risk_tier.value}")
+        print(f"Reason: {decision.reason}")
+        print(f"Explanation: {decision.explanation}")
+        if decision.signature:
+            print(f"Signature: {decision.signature[:24]}...")
 
 if __name__ == "__main__":
     asyncio.run(run_demo())

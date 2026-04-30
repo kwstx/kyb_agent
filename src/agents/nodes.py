@@ -28,23 +28,34 @@ async def guardrails_node(state: AgentState) -> Dict[str, Any]:
         "has_consent": state.get("consent_granted", False),
         "consent_scope": state.get("consent_scope", []),
         "company_query": state.get("company_query"),
-        "registration_number": state.get("registration_number")
+        "registration_number": state.get("registration_number"),
+        "risk_score_impact": state.get("last_risk_delta", 0.0)
     }
     
     # Evaluate the proposed transition
     evaluation = await guard.evaluate_action(action_type=f"transition_to_{next_node}", payload=payload)
     
-    logs = [f"Safety Evaluation for {next_node}: {evaluation.reason}"]
+    logs = [f"🛡️ Safety Decision: {'AUTHORIZED' if evaluation.authorized else 'BLOCKED'}"]
+    logs.append(f"Reason: {evaluation.reason}")
+    
+    if evaluation.explanation:
+        logs.append(f"Explanation: {evaluation.explanation}")
+
     if evaluation.signature:
-        logs.append(f"Action Signed. KYA-ID: {evaluation.action_id} | SIG: {evaluation.signature[:16]}...")
+        logs.append(f"✅ Action Signed. KYA-ID: {evaluation.action_id}")
+        logs.append(f"   Signature: {evaluation.signature[:24]}...")
 
     # Handle escalation based on risk tiers
     requires_signoff = evaluation.requires_hitl
     
-    if evaluation.risk_tier == RiskTier.HIGH:
-        logs.append("CRITICAL: High-risk action detected. Mandatory human sign-off required.")
+    if not evaluation.authorized:
+        logs.append("🛑 CRITICAL: Action blocked by policy enforcement layer.")
+    elif evaluation.risk_tier == RiskTier.HIGH:
+        logs.append("⚠️ HIGH RISK: Mandatory human sign-off required before execution.")
     elif evaluation.risk_tier == RiskTier.MEDIUM:
-        logs.append("WARNING: Medium-risk action detected. Triggering human review via shared workspace.")
+        logs.append("📋 MEDIUM RISK: Triggering human review via shared workspace.")
+    else:
+        logs.append("✨ LOW RISK: Auto-approving action.")
 
     # Log to immutable audit store
     audit_store.log_action(
