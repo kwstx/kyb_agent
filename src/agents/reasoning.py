@@ -4,7 +4,10 @@ from pydantic import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
-from src.schema import AgentState, KYBProfile, RegistryData, RiskRating
+from src.schema import AgentState, KYBProfile, RegistryData, RiskRating, XAIArtifact, AudienceSummary
+import hashlib
+import hmac
+from src.tools.audit import audit_store
 
 # --- Schema for Reasoning ---
 
@@ -28,6 +31,9 @@ class Synthesis(BaseModel):
     alternative_hypotheses: List[Hypothesis]
     regulatory_alignment: str
     confidence_score: float
+    uncertainty_factors: List[str]
+    feature_importance: Dict[str, float] # e.g. {"registry_data": 0.4, "document_verification": 0.3, "sanctions_check": 0.3}
+    citations: List[Dict[str, str]] # [{ "source": "...", "snippet": "..." }]
 
 # --- Agents ---
 
@@ -154,12 +160,15 @@ class ReasoningAgent:
         # 6. Final Synthesis
         synthesis = await self._synthesize_findings(state)
         
-        # 7. Update State
+        # 7. Generate XAI Artifact
+        xai_report = await self.generate_xai_artifact(state, synthesis)
+        
+        # 8. Update State
         state["reasoning_history"] = [s.model_dump() for s in history]
         
         # Update Risk Assessment with synthesized data
         if not state["results"].risk_assessment:
-            state["results"].risk_assessment = RiskRating(score=0.0, factors=[], summary="")
+            state["results"].risk_assessment = RiskRating(score=synthesis.confidence_score, factors=[], summary="")
             
         state["results"].risk_assessment.summary = (
             f"REASONING SYNTHESIS:\n{synthesis.final_summary}\n\n"
@@ -167,8 +176,59 @@ class ReasoningAgent:
             f"(Confidence: {synthesis.primary_hypothesis.confidence_score})\n"
             f"REGULATORY ALIGNMENT: {synthesis.regulatory_alignment}"
         )
+        state["results"].risk_assessment.factors = list(synthesis.feature_importance.keys())
+        state["results"].xai_report = xai_report
+        
+        # Sign the result (Simulated signing)
+        report_json = xai_report.model_dump_json()
+        signature = hashlib.sha256(report_json.encode()).hexdigest()
+        state["results"].signature = signature
+        
+        # Persist to Audit Store
+        profile_id = state.get("registration_number") or state["company_query"]
+        audit_store.store_xai_explanation(profile_id, xai_report.model_dump(), signature)
         
         return state
+
+    async def generate_xai_artifact(self, state: AgentState, synthesis: Synthesis) -> XAIArtifact:
+        """
+        Generates a structured XAI artifact for regulators and compliance officers.
+        """
+        # Generate audience-tailored summaries
+        summaries = await self._generate_audience_summaries(state, synthesis)
+        
+        return XAIArtifact(
+            chain_of_thought=state.get("reasoning_history", []),
+            sources=synthesis.citations,
+            confidence_calibration={
+                "score": synthesis.confidence_score,
+                "method": "direct_llm_calibration_with_uncertainty_weighting",
+                "uncertainty_factors": synthesis.uncertainty_factors
+            },
+            feature_importance=synthesis.feature_importance,
+            summaries=summaries
+        )
+
+    async def _generate_audience_summaries(self, state: AgentState, synthesis: Synthesis) -> AudienceSummary:
+        prompt = f"""
+        Generate two distinct summaries for the following KYB investigation:
+        
+        Investigation: {synthesis.final_summary}
+        Primary Hypothesis: {synthesis.primary_hypothesis.description}
+        Risk Factors: {list(synthesis.feature_importance.keys())}
+        
+        1. Compliance Officer Summary: Focus on operational risk, missing documentation, and specific red flags.
+        2. Regulator Summary: Focus on statutory compliance, jurisdictional alignment, and the robustness of the evidence chain.
+        
+        Output JSON:
+        {{
+            "compliance_officer": "...",
+            "regulator": "..."
+        }}
+        """
+        response = await self.llm.ainvoke(prompt)
+        data = json.loads(response.content)
+        return AudienceSummary(**data)
 
     async def _generate_step(self, state: AgentState, history: List[ReasoningStep]) -> ReasoningStep:
         prompt = f"""
@@ -207,8 +267,16 @@ class ReasoningAgent:
         Analyze all logs and findings:
         {state['logs']}
         
-        Provide a final synthesis including primary and alternative hypotheses, and regulatory alignment.
+        Provide a final synthesis including:
+        - primary and alternative hypotheses
+        - regulatory alignment
+        - confidence score (0-1)
+        - uncertainty factors (why might you be wrong?)
+        - feature importance (SHAP-style weighting for key risk factors)
+        - citations for all key claims
+        
         Output in JSON format matching the 'Synthesis' schema.
+        Note: feature_importance should sum to 1.0 or be normalized.
         """
         response = await self.llm.ainvoke(prompt)
         data = json.loads(response.content)

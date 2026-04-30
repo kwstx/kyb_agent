@@ -22,6 +22,16 @@ class ToolInvocationAudit(Base):
     status = Column(String(50))  # success, failure, error
     error_message = Column(Text, nullable=True)
 
+class XAIExplanation(Base) :
+    __tablename__ = 'xai_explanations'
+
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(String(255), index=True) # Linked to the company/profile
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    explanation_json = Column(JSON)
+    signature = Column(String(255))
+    audience_summaries = Column(JSON)
+
 class AuditStore:
     def __init__(self, db_url=None):
         self.db_url = db_url or os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/kyb_audit")
@@ -60,6 +70,23 @@ class AuditStore:
             session.commit()
         except Exception as e:
             print(f"Failed to log tool invocation: {e}")
+            session.rollback()
+        finally:
+            session.close()
+
+    def store_xai_explanation(self, profile_id, xai_artifact_dict, signature):
+        session = self.Session()
+        try:
+            explanation_entry = XAIExplanation(
+                profile_id=profile_id,
+                explanation_json=xai_artifact_dict,
+                signature=signature,
+                audience_summaries=xai_artifact_dict.get('summaries', {})
+            )
+            session.add(explanation_entry)
+            session.commit()
+        except Exception as e:
+            print(f"Failed to store XAI explanation: {e}")
             session.rollback()
         finally:
             session.close()

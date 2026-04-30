@@ -1,6 +1,19 @@
 from typing import List, Optional, Dict, Any, Annotated, TypedDict
 from pydantic import BaseModel, Field
 import operator
+import datetime
+
+class AudienceSummary(BaseModel):
+    compliance_officer: str
+    regulator: str
+
+class XAIArtifact(BaseModel):
+    chain_of_thought: List[Dict[str, Any]]
+    sources: List[Dict[str, str]] # [{ "source": "registry", "citation": "..." }]
+    confidence_calibration: Dict[str, Any] # { "score": 0.95, "method": "direct_llm", "uncertainty_factors": [...] }
+    feature_importance: Dict[str, float] # SHAP/LIME style weights for key risk factors
+    summaries: AudienceSummary
+    timestamp: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
 
 class RegistryData(BaseModel):
     company_name: str
@@ -43,6 +56,8 @@ class KYBProfile(BaseModel):
     documents: List[DocumentEvidence] = Field(default_factory=list)
     risk_assessment: Optional[RiskRating] = None
     entities_resolved: bool = False
+    xai_report: Optional[XAIArtifact] = None
+    signature: Optional[str] = None # Digital signature of the JSON artifact
 
 class AgentState(TypedDict):
     # LangGraph state typically uses TypedDict
