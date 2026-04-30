@@ -46,15 +46,61 @@ async def map_ownership_node(state: AgentState) -> Dict[str, Any]:
         "logs": ["Ownership structure mapped and UBOs identified."]
     }
 
+from src.tools.document import DocumentProcessor
+from src.agents.document_understanding import DocumentUnderstandingAgent
+from src.agents.reasoning import ReasoningAgent
+
+doc_processor = DocumentProcessor()
+doc_understanding = DocumentUnderstandingAgent()
+reasoning_agent = ReasoningAgent()
+
+from src.schema import DocumentChunk, DocumentEvidence
+
 async def process_documents_node(state: AgentState) -> Dict[str, Any]:
-    # Simulate OCR and extraction
     docs = state.get("uploaded_docs", [])
+    logs = []
     
-    # In reality, this would use a vision model or PDF parser
-    # state["results"].documents.append(...)
+    current_evidence = DocumentEvidence(
+        doc_type="investigation_batch",
+        findings=[],
+        confidence=0.0,
+        chunks=[],
+        source_files=docs
+    )
     
+    all_chunks = []
+    
+    for doc_path in docs:
+        # 1. OCR / Extraction
+        extraction = doc_processor.process(doc_path)
+        logs.append(f"Extracted text from {doc_path} using {extraction.metadata['engine']}")
+        
+        # 2. Analyze and Index
+        doc_id = doc_path.split("/")[-1]
+        chunks_data = await doc_understanding.analyze_and_index(extraction, doc_id)
+        
+        for c in chunks_data:
+            all_chunks.append(DocumentChunk(text=c["text"], metadata=c["metadata"]))
+            
+        logs.append(f"Indexed {len(chunks_data)} chunks from {doc_id}")
+        
+    current_evidence.chunks = all_chunks
+    
+    # 3. Cross-reference with Registry Data if available
+    registry = state["results"].registry
+    if registry and docs:
+        facts = await doc_understanding.query_facts(f"Details about {registry.company_name}")
+        contradictions = await reasoning_agent.cross_reference(registry, facts)
+        
+        logs.append("Cross-referenced document facts with registry data.")
+        current_evidence.findings.append(str(contradictions))
+        current_evidence.confidence = 0.85 # Simplified
+        
+    state["results"].documents.append(current_evidence)
+
     return {
-        "logs": [f"Processed {len(docs)} documents."]
+        "results": state["results"],
+        "logs": logs
     }
 
 async def assess_risk_node(state: AgentState) -> Dict[str, Any]:

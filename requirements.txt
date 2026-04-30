@@ -11,3 +11,13 @@ psycopg2-binary
 hvac
 httpx
 tavily-python
+boto3
+azure-ai-formrecognizer
+qdrant-client
+sentence-transformers
+unstructured[pdf]
+pypdf
+langchain-qdrant
+transformers
+torch
+pillow

@@ -21,10 +21,16 @@ class OwnershipStructure(BaseModel):
     layers: int
     resolved: bool
 
+class DocumentChunk(BaseModel):
+    text: str
+    metadata: Dict[str, Any] # page, doc_type, confidence, etc.
+
 class DocumentEvidence(BaseModel):
     doc_type: str
     findings: List[str]
     confidence: float
+    chunks: List[DocumentChunk] = Field(default_factory=list)
+    source_files: List[str] = Field(default_factory=list)
 
 class RiskRating(BaseModel):
     score: float # 0.0 to 1.0
