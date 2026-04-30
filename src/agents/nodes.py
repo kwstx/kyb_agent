@@ -1,12 +1,42 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 from src.schema import AgentState, RegistryData, OwnershipStructure, RiskRating, OwnershipEntity
 from langchain_openai import ChatOpenAI
 import json
 from src.agents.entity_resolution import EntityResolutionAgent
 from datetime import datetime
+from src.memory import VectorMemory, GraphMemory
 
 llm = ChatOpenAI(model="gpt-4o")
 er_agent = EntityResolutionAgent()
+vector_memory = VectorMemory()
+graph_memory = GraphMemory()
+
+async def initial_memory_lookup_node(state: AgentState) -> Dict[str, Any]:
+    """Retrieves historical data and similar cases to inform the investigation."""
+    company_id = state.get("registration_number") or state["company_query"]
+    logs = []
+    
+    # 1. Long-term memory lookup (Knowledge Graph)
+    historical_profile = graph_memory.get_historical_profile(company_id)
+    if historical_profile:
+        logs.append(f"Retrieved historical profile for {company_id} from knowledge graph.")
+        # We'll store this in the state for later delta detection or reference
+        state["results"].registry = RegistryData.model_validate_json(historical_profile["registry"]) if historical_profile.get("registry") else None
+        state["results"].ownership = OwnershipStructure.model_validate_json(historical_profile["ownership"]) if historical_profile.get("ownership") else None
+    
+    # 2. Medium-term memory lookup (Vector DB)
+    query_text = f"KYB investigation for {state['company_query']}"
+    similar_cases = vector_memory.search_similar_cases(query_text)
+    if similar_cases:
+        logs.append(f"Found {len(similar_cases)} similar past cases for context.")
+        # In a real agent, we'd add these to the context window as few-shot examples
+        state["hypotheses"].append({"type": "similarity_context", "cases": similar_cases})
+
+    return {
+        "results": state["results"],
+        "hypotheses": state["hypotheses"],
+        "logs": logs
+    }
 
 async def gather_registry_data_node(state: AgentState) -> Dict[str, Any]:
     # Simulate tool call to a global registry
@@ -14,7 +44,7 @@ async def gather_registry_data_node(state: AgentState) -> Dict[str, Any]:
     
     # In a real app, this would use a tool like 'opencorporates' or 'global_registry_search'
     # For now, we simulate the structured output
-    mock_data = RegistryData(
+    new_registry_data = RegistryData(
         company_name=query,
         registration_number=state.get("registration_number") or "REG-12345",
         status="Active",
@@ -23,10 +53,19 @@ async def gather_registry_data_node(state: AgentState) -> Dict[str, Any]:
         raw_data={"source": "mock_registry_api", "confidence": 0.98}
     )
     
-    state["results"].registry = mock_data
+    # Delta detection if we have historical data
+    logs = [f"Registry data gathered for {query}"]
+    if state["results"].registry:
+        deltas = graph_memory.detect_deltas({"registry": state["results"].registry.model_dump_json()}, new_registry_data)
+        if deltas:
+            logs.append(f"Deltas detected: {', '.join(deltas)}")
+        else:
+            logs.append("No changes detected since last investigation. Focusing on validation.")
+
+    state["results"].registry = new_registry_data
     return {
         "results": state["results"],
-        "logs": [f"Registry data gathered for {query}"]
+        "logs": logs
     }
 
 async def map_ownership_node(state: AgentState) -> Dict[str, Any]:
@@ -128,9 +167,19 @@ async def assess_risk_node(state: AgentState) -> Dict[str, Any]:
         risk = RiskRating(score=0.1, factors=["Low data available"], summary="Defaulting to low risk due to parsing error")
     
     state["results"].risk_assessment = risk
+    
+    # Update Memory Systems
+    company_id = state.get("registration_number") or state["company_query"]
+    
+    # 1. Update Long-term Knowledge Graph
+    graph_memory.update_knowledge_base(company_id, state["results"])
+    
+    # 2. Update Medium-term Vector Memory
+    vector_memory.add_case(state["results"].model_dump(), {"query": state["company_query"]})
+    
     return {
         "results": state["results"],
-        "logs": [f"Risk assessment completed. Score: {risk.score}"]
+        "logs": [f"Risk assessment completed. Score: {risk.score}", "Knowledge base and vector memory updated."]
     }
 
 async def resolve_entities_node(state: AgentState) -> Dict[str, Any]:

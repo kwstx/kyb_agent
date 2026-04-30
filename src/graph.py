@@ -7,12 +7,17 @@ from src.agents.nodes import (
     process_documents_node,
     assess_risk_node,
     resolve_entities_node,
-    reasoning_investigation_node
+    reasoning_investigation_node,
+    initial_memory_lookup_node # New node
 )
+from src.memory import get_checkpointer
 
 def create_kyb_graph():
     # Initialize the graph with our state schema
     workflow = StateGraph(AgentState)
+
+    # Add memory lookup node
+    workflow.add_node("memory_lookup", initial_memory_lookup_node)
 
     # Add the Supervisor
     supervisor = Supervisor()
@@ -27,8 +32,11 @@ def create_kyb_graph():
     workflow.add_node("reasoning_investigation", reasoning_investigation_node)
 
     # Define edges
-    # Start always goes to the supervisor for the initial plan
-    workflow.set_entry_point("supervisor")
+    # Start with memory lookup to see what we already know
+    workflow.set_entry_point("memory_lookup")
+    
+    # After lookup, go to supervisor to plan the investigation
+    workflow.add_edge("memory_lookup", "supervisor")
 
     # The supervisor decides where to go next
     def route_supervisor(state: AgentState):
@@ -59,4 +67,5 @@ def create_kyb_graph():
     workflow.add_edge("resolve_entities", "supervisor")
     workflow.add_edge("reasoning_investigation", "supervisor")
 
-    return workflow.compile()
+    # Compile with checkpointer for short-term conversational memory
+    return workflow.compile(checkpointer=get_checkpointer())
