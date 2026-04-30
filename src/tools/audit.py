@@ -32,6 +32,16 @@ class XAIExplanation(Base) :
     signature = Column(String(255))
     audience_summaries = Column(JSON)
 
+class ConsentLog(Base):
+    __tablename__ = 'consent_logs'
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    business_id = Column(String(255), index=True)
+    action = Column(String(50))  # GRANT, REVOKE
+    scope = Column(String(255))  # e.g., "storage", "sanctions_disclosure"
+    signature = Column(Text)     # Cryptographic signature of the log entry
+    public_key = Column(String(255)) # Public key used for signing
+
 class AuditStore:
     def __init__(self, db_url=None):
         self.db_url = db_url or os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/kyb_audit")
@@ -87,6 +97,24 @@ class AuditStore:
             session.commit()
         except Exception as e:
             print(f"Failed to store XAI explanation: {e}")
+            session.rollback()
+        finally:
+            session.close()
+
+    def log_consent(self, business_id, action, scope, signature, public_key):
+        session = self.Session()
+        try:
+            consent_entry = ConsentLog(
+                business_id=business_id,
+                action=action,
+                scope=scope,
+                signature=signature,
+                public_key=public_key
+            )
+            session.add(consent_entry)
+            session.commit()
+        except Exception as e:
+            print(f"Failed to log consent: {e}")
             session.rollback()
         finally:
             session.close()

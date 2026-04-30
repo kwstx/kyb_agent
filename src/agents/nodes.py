@@ -11,6 +11,27 @@ er_agent = EntityResolutionAgent()
 vector_memory = VectorMemory()
 graph_memory = GraphMemory()
 
+from src.privacy.consent import consent_manager
+from src.privacy.ssi import ssi_issuer
+
+async def consent_management_node(state: AgentState) -> Dict[str, Any]:
+    """Ensures consent is captured and logs the cryptographic proof."""
+    company_id = state.get("registration_number") or state["company_query"]
+    
+    # Simulate capturing consent (in a real app, this would be an API call or UI interaction)
+    # We'll assume the user provided 'storage' and 'selective_disclosure' consent
+    scopes = state.get("consent_scope", ["storage", "selective_disclosure"])
+    
+    logs = []
+    for scope in scopes:
+        res = consent_manager.grant_consent(company_id, scope)
+        logs.append(f"Consent GRANTED for scope: {scope}. Proof: {res['signature'][:16]}...")
+        
+    return {
+        "consent_granted": True,
+        "logs": logs
+    }
+
 async def initial_memory_lookup_node(state: AgentState) -> Dict[str, Any]:
     """Retrieves historical data and similar cases to inform the investigation."""
     company_id = state.get("registration_number") or state["company_query"]
@@ -211,6 +232,38 @@ async def resolve_entities_node(state: AgentState) -> Dict[str, Any]:
     return {
         "results": state["results"],
         "plan": state["plan"],
+        "logs": logs
+    }
+
+async def privacy_cleanup_and_ssi_node(state: AgentState) -> Dict[str, Any]:
+    """Generates W3C VC and performs data minimization/cleanup."""
+    results = state["results"]
+    company_id = state.get("registration_number") or state["company_query"]
+    logs = ["Initiating privacy cleanup and VC generation."]
+
+    # 1. Generate Verifiable Credential
+    # We selectively disclose only registration and sanctions status for the standard link
+    selective_fields = ["company_name", "registration_status", "sanctions_check", "verification_date"]
+    vc = ssi_issuer.generate_kyb_vc(results.model_dump(), selective_fields=selective_fields)
+    wallet_link = ssi_issuer.generate_wallet_link(vc)
+    
+    logs.append(f"W3C Verifiable Credential generated. Wallet link: {wallet_link}")
+
+    # 2. Data Minimization & Cleanup
+    # If storage consent was NOT granted, we must delete ephemeral data
+    # (In this mock, we assume 'storage' scope was checked)
+    if "storage" not in state.get("consent_scope", []):
+        logs.append("Storage consent not granted. Deleting ephemeral document data.")
+        # Wipe sensitive ephemeral data from results
+        state["results"].documents = []
+        # In a real system, we'd also trigger deletion in the Vector DB/S3
+        # vector_memory.delete_case(company_id) 
+    else:
+        logs.append("Storage consent active. Persisting investigation artifacts.")
+
+    return {
+        "vc_link": wallet_link,
+        "results": state["results"],
         "logs": logs
     }
 

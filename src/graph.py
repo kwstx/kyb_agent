@@ -8,7 +8,9 @@ from src.agents.nodes import (
     assess_risk_node,
     resolve_entities_node,
     reasoning_investigation_node,
-    initial_memory_lookup_node # New node
+    initial_memory_lookup_node,
+    consent_management_node,
+    privacy_cleanup_and_ssi_node
 )
 from src.memory import get_checkpointer
 
@@ -30,10 +32,15 @@ def create_kyb_graph():
     workflow.add_node("assess_risk", assess_risk_node)
     workflow.add_node("resolve_entities", resolve_entities_node)
     workflow.add_node("reasoning_investigation", reasoning_investigation_node)
+    workflow.add_node("consent_management", consent_management_node)
+    workflow.add_node("privacy_cleanup", privacy_cleanup_and_ssi_node)
 
     # Define edges
-    # Start with memory lookup to see what we already know
-    workflow.set_entry_point("memory_lookup")
+    # Start with consent management to ensure legal compliance
+    workflow.set_entry_point("consent_management")
+    
+    # After consent, go to memory lookup
+    workflow.add_edge("consent_management", "memory_lookup")
     
     # After lookup, go to supervisor to plan the investigation
     workflow.add_edge("memory_lookup", "supervisor")
@@ -42,7 +49,7 @@ def create_kyb_graph():
     def route_supervisor(state: AgentState):
         next_node = state.get("next_node")
         if next_node == "end":
-            return END
+            return "privacy_cleanup"
         return next_node
 
     workflow.add_conditional_edges(
@@ -55,7 +62,7 @@ def create_kyb_graph():
             "assess_risk": "assess_risk",
             "resolve_entities": "resolve_entities",
             "reasoning_investigation": "reasoning_investigation",
-            END: END
+            "privacy_cleanup": "privacy_cleanup"
         }
     )
 
@@ -66,6 +73,9 @@ def create_kyb_graph():
     workflow.add_edge("assess_risk", "supervisor")
     workflow.add_edge("resolve_entities", "supervisor")
     workflow.add_edge("reasoning_investigation", "supervisor")
+    
+    # After cleanup, we are done
+    workflow.add_edge("privacy_cleanup", END)
 
     # Compile with checkpointer for short-term conversational memory
     return workflow.compile(checkpointer=get_checkpointer())

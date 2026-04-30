@@ -73,3 +73,7 @@ class AgentState(TypedDict):
     # Use Annotated with operator.add for lists to append instead of overwrite if needed
     logs: Annotated[List[str], operator.add]
     next_node: str # For routing
+    # Privacy & SSI
+    consent_scope: List[str] # ["storage", "disclosure", "selective_sanctions"]
+    consent_granted: bool
+    vc_link: Optional[str]
