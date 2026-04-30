@@ -164,3 +164,15 @@ async def resolve_entities_node(state: AgentState) -> Dict[str, Any]:
         "plan": state["plan"],
         "logs": logs
     }
+
+async def reasoning_investigation_node(state: AgentState) -> Dict[str, Any]:
+    """Node for complex reasoning and planning using the Investigator/Critic loop."""
+    # Note: reasoning_agent.run_investigation_loop handles adding logs and updating results
+    updated_state = await reasoning_agent.run_investigation_loop(state)
+    
+    return {
+        "results": updated_state["results"],
+        "reasoning_history": updated_state.get("reasoning_history", []),
+        "hypotheses": updated_state.get("hypotheses", []),
+        "logs": updated_state["logs"]
+    }

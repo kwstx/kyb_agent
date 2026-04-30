@@ -52,6 +52,9 @@ class AgentState(TypedDict):
     plan: List[str]
     current_task: Optional[str]
     results: KYBProfile
+    # Reasoning fields
+    reasoning_history: Annotated[List[Dict[str, Any]], operator.add]
+    hypotheses: Annotated[List[Dict[str, Any]], operator.add]
     # Use Annotated with operator.add for lists to append instead of overwrite if needed
     logs: Annotated[List[str], operator.add]
     next_node: str # For routing
