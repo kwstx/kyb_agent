@@ -13,6 +13,55 @@ graph_memory = GraphMemory()
 
 from src.privacy.consent import consent_manager
 from src.privacy.ssi import ssi_issuer
+from src.safety.guard import guard, RiskTier
+from src.tools.audit import audit_store
+
+async def guardrails_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Policy Enforcement Layer that evaluates the next planned action.
+    Blocks actions violating compliance or requiring human intervention.
+    """
+    next_node = state.get("next_node", "end")
+    
+    # Contextual payload for safety evaluation
+    payload = {
+        "has_consent": state.get("consent_granted", False),
+        "consent_scope": state.get("consent_scope", []),
+        "company_query": state.get("company_query"),
+        "registration_number": state.get("registration_number")
+    }
+    
+    # Evaluate the proposed transition
+    evaluation = await guard.evaluate_action(action_type=f"transition_to_{next_node}", payload=payload)
+    
+    logs = [f"Safety Evaluation for {next_node}: {evaluation.reason}"]
+    if evaluation.signature:
+        logs.append(f"Action Signed. KYA-ID: {evaluation.action_id} | SIG: {evaluation.signature[:16]}...")
+
+    # Handle escalation based on risk tiers
+    requires_signoff = evaluation.requires_hitl
+    
+    if evaluation.risk_tier == RiskTier.HIGH:
+        logs.append("CRITICAL: High-risk action detected. Mandatory human sign-off required.")
+    elif evaluation.risk_tier == RiskTier.MEDIUM:
+        logs.append("WARNING: Medium-risk action detected. Triggering human review via shared workspace.")
+
+    # Log to immutable audit store
+    audit_store.log_action(
+        agent_id=guard.agent_id,
+        action_id=evaluation.action_id,
+        action_type=f"transition_to_{next_node}",
+        risk_tier=evaluation.risk_tier.value,
+        signature=evaluation.signature,
+        authorized=evaluation.authorized,
+        explanation=evaluation.explanation
+    )
+
+    return {
+        "safety_evaluation": evaluation.model_dump(),
+        "requires_human_signoff": requires_signoff,
+        "logs": logs
+    }
 
 async def consent_management_node(state: AgentState) -> Dict[str, Any]:
     """Ensures consent is captured and logs the cryptographic proof."""
@@ -29,6 +78,8 @@ async def consent_management_node(state: AgentState) -> Dict[str, Any]:
         
     return {
         "consent_granted": True,
+        "requires_human_signoff": False,
+        "human_approval_granted": False,
         "logs": logs
     }
 

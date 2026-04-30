@@ -88,9 +88,9 @@ class EntityResolutionAgent:
             )
 
             # 6. Check for missing data / recursive tasks
-                if entity.type == "Corporate" and entity.percentage > 25.0:
-                    # Flag for recursive investigation
-                    results[-1]["subtask"] = f"investigate linked entity {entity.name} in jurisdiction Unknown"
+            if entity.type == "Corporate" and entity.percentage > 25.0:
+                # Flag for recursive investigation
+                results[-1]["subtask"] = f"investigate linked entity {entity.name} in jurisdiction Unknown"
 
         return results
 

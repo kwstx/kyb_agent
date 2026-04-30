@@ -8,6 +8,7 @@ import pybreaker
 from langchain.tools import BaseTool
 from .audit import audit_store
 from .secrets import secrets_manager
+import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -63,6 +64,62 @@ class BaseResilientTool(BaseTool):
         return executed_with_retry_and_breaker()
 
     async def _arun_with_resilience(self, func: Callable, *args, **kwargs) -> Any:
-        # Async implementation of the same pattern
-        # (Simplified for now, similar to _run_with_resilience)
-        return self._run_with_resilience(func, *args, **kwargs)
+        from src.safety.guard import guard
+        tool_name = self.name
+        input_params = {"args": args, "kwargs": kwargs}
+
+        # 1. Evaluate safety and get KYA signature
+        evaluation = await guard.evaluate_action(
+            action_type=f"tool_execution_{tool_name}", 
+            payload=input_params
+        )
+        
+        if not evaluation.authorized:
+            audit_store.log_invocation(
+                tool_name=tool_name,
+                input_params=input_params,
+                raw_response=None,
+                parsed_output=None,
+                status="blocked",
+                error_message=f"Safety Guardrail Blocked: {evaluation.reason}"
+            )
+            raise PermissionError(f"Action blocked by AutonomyGuard: {evaluation.reason}")
+
+        # 2. Proceed with execution
+        # (Using a simplified async execution for demo)
+        try:
+            # If the tool is async, we await it, else we run it in a thread/executor
+            if asyncio.iscoroutinefunction(func):
+                raw_response = await func(*args, **kwargs)
+            else:
+                raw_response = func(*args, **kwargs)
+
+            # 3. Audit success with signature
+            audit_store.log_invocation(
+                tool_name=tool_name,
+                input_params=input_params,
+                raw_response=raw_response,
+                parsed_output=raw_response,
+                status="success"
+            )
+            # Log the signed action to the specific action audit table
+            audit_store.log_action(
+                agent_id=guard.agent_id,
+                action_id=evaluation.action_id,
+                action_type=f"tool_execution_{tool_name}",
+                risk_tier=evaluation.risk_tier.value,
+                signature=evaluation.signature,
+                authorized=evaluation.authorized,
+                explanation=evaluation.explanation
+            )
+            return raw_response
+        except Exception as e:
+            audit_store.log_invocation(
+                tool_name=tool_name,
+                input_params=input_params,
+                raw_response=None,
+                parsed_output=None,
+                status="failure",
+                error_message=str(e)
+            )
+            raise e

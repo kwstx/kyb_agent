@@ -10,7 +10,8 @@ from src.agents.nodes import (
     reasoning_investigation_node,
     initial_memory_lookup_node,
     consent_management_node,
-    privacy_cleanup_and_ssi_node
+    privacy_cleanup_and_ssi_node,
+    guardrails_node
 )
 from src.memory import get_checkpointer
 
@@ -34,6 +35,7 @@ def create_kyb_graph():
     workflow.add_node("reasoning_investigation", reasoning_investigation_node)
     workflow.add_node("consent_management", consent_management_node)
     workflow.add_node("privacy_cleanup", privacy_cleanup_and_ssi_node)
+    workflow.add_node("guardrails", guardrails_node)
 
     # Define edges
     # Start with consent management to ensure legal compliance
@@ -50,11 +52,28 @@ def create_kyb_graph():
         next_node = state.get("next_node")
         if next_node == "end":
             return "privacy_cleanup"
-        return next_node
+        return "guardrails" # Always go through guardrails first
+
+    def route_guardrails(state: AgentState):
+        if state.get("requires_human_signoff") and not state.get("human_approval_granted"):
+            # This is where the graph would interrupt if compiled with interrupts
+            # For this implementation, we'll route to END or a pause state if we had one
+            return "supervisor" # Go back to supervisor to wait/replan if blocked
+        
+        return state.get("next_node")
 
     workflow.add_conditional_edges(
         "supervisor",
         route_supervisor,
+        {
+            "guardrails": "guardrails",
+            "privacy_cleanup": "privacy_cleanup"
+        }
+    )
+
+    workflow.add_conditional_edges(
+        "guardrails",
+        route_guardrails,
         {
             "gather_registry_data": "gather_registry_data",
             "map_ownership": "map_ownership",
@@ -62,7 +81,7 @@ def create_kyb_graph():
             "assess_risk": "assess_risk",
             "resolve_entities": "resolve_entities",
             "reasoning_investigation": "reasoning_investigation",
-            "privacy_cleanup": "privacy_cleanup"
+            "supervisor": "supervisor"
         }
     )
 

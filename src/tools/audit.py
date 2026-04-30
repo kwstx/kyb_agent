@@ -42,6 +42,18 @@ class ConsentLog(Base):
     signature = Column(Text)     # Cryptographic signature of the log entry
     public_key = Column(String(255)) # Public key used for signing
 
+class ActionAudit(Base):
+    __tablename__ = 'action_audit'
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    agent_id = Column(String(255))
+    action_id = Column(String(255), unique=True)
+    action_type = Column(String(255))
+    risk_tier = Column(String(50))
+    signature = Column(Text)
+    authorized = Column(Integer) # 1 for True, 0 for False
+    explanation = Column(Text)
+
 class AuditStore:
     def __init__(self, db_url=None):
         self.db_url = db_url or os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/kyb_audit")
@@ -115,6 +127,26 @@ class AuditStore:
             session.commit()
         except Exception as e:
             print(f"Failed to log consent: {e}")
+            session.rollback()
+        finally:
+            session.close()
+
+    def log_action(self, agent_id, action_id, action_type, risk_tier, signature, authorized, explanation):
+        session = self.Session()
+        try:
+            action_entry = ActionAudit(
+                agent_id=agent_id,
+                action_id=action_id,
+                action_type=action_type,
+                risk_tier=risk_tier,
+                signature=signature,
+                authorized=1 if authorized else 0,
+                explanation=explanation
+            )
+            session.add(action_entry)
+            session.commit()
+        except Exception as e:
+            print(f"Failed to log action: {e}")
             session.rollback()
         finally:
             session.close()

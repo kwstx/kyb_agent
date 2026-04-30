@@ -77,3 +77,7 @@ class AgentState(TypedDict):
     consent_scope: List[str] # ["storage", "disclosure", "selective_sanctions"]
     consent_granted: bool
     vc_link: Optional[str]
+    # Safety & Human-in-the-Loop
+    safety_evaluation: Optional[Dict[str, Any]]
+    requires_human_signoff: bool
+    human_approval_granted: bool
