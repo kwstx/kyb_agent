@@ -2,8 +2,11 @@ from typing import Dict, Any
 from src.schema import AgentState, RegistryData, OwnershipStructure, RiskRating, OwnershipEntity
 from langchain_openai import ChatOpenAI
 import json
+from src.agents.entity_resolution import EntityResolutionAgent
+from datetime import datetime
 
 llm = ChatOpenAI(model="gpt-4o")
+er_agent = EntityResolutionAgent()
 
 async def gather_registry_data_node(state: AgentState) -> Dict[str, Any]:
     # Simulate tool call to a global registry
@@ -128,4 +131,36 @@ async def assess_risk_node(state: AgentState) -> Dict[str, Any]:
     return {
         "results": state["results"],
         "logs": [f"Risk assessment completed. Score: {risk.score}"]
+    }
+
+async def resolve_entities_node(state: AgentState) -> Dict[str, Any]:
+    """Node for resolving discovered entities against the knowledge graph."""
+    logs = []
+    ownership = state["results"].ownership
+    
+    if not ownership or not ownership.entities:
+        return {"logs": ["No ownership data to resolve."]}
+        
+    source_metadata = {
+        "url": state["results"].registry.raw_data.get("source", "unknown") if state["results"].registry else "unknown",
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Run ER logic
+    parent_id = state.get("registration_number") or state["company_query"]
+    resolution_results = await er_agent.resolve_entities(ownership.entities, source_metadata, parent_id)
+    
+    for res in resolution_results:
+        logs.append(f"Entity {res['entity']}: {res['status']} (confidence: {res.get('confidence', 1.0)})")
+        if "subtask" in res:
+            logs.append(f"CRITICAL: Spawning sub-task: {res['subtask']}")
+            # In a real system, this would append to a task queue or update the plan
+            state["plan"].append(res["subtask"])
+            
+    state["results"].entities_resolved = True
+            
+    return {
+        "results": state["results"],
+        "plan": state["plan"],
+        "logs": logs
     }

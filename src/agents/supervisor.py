@@ -22,21 +22,23 @@ class Supervisor:
         Current Status:
         - Registry Data: {'Present' if results.registry else 'Missing'}
         - Ownership Structure: {'Present' if results.ownership else 'Missing'}
+        - Entity Resolution: {'Complete' if results.entities_resolved else 'Pending'}
         - Documents Processed: {len(results.documents)}
         - Risk Assessment: {'Present' if results.risk_assessment else 'Missing'}
         
         Available Nodes:
         1. gather_registry_data: Retrieve official records.
-        2. map_ownership: Resolve UBOs and parent companies.
-        3. process_documents: Analyze uploaded files.
-        4. assess_risk: Final evaluation based on all evidence.
-        5. end: Investigation complete.
+        2. map_ownership: Analyze registry/docs to find owners.
+        3. resolve_entities: Link owners to the Knowledge Graph and check for duplicates/linkages.
+        4. process_documents: Analyze uploaded files.
+        5. assess_risk: Final evaluation based on all evidence.
+        6. end: Investigation complete.
         
         Instructions:
         - If registry data is missing, prioritize gather_registry_data.
-        - Once registry data is present, if ownership is missing, go to map_ownership.
-        - If documents are uploaded but not processed, go to process_documents.
-        - If all data is gathered but risk assessment is missing, go to assess_risk.
+        - If ownership is mapped but resolve_entities hasn't run, go to resolve_entities.
+        - Once registry/ownership is present and resolved, if documents are uploaded but not processed, go to process_documents.
+        - If all data is gathered and resolved, go to assess_risk.
         - If everything is done, go to end.
         
         Respond with ONLY a JSON object: {{"next_node": "node_name", "reasoning": "why"}}

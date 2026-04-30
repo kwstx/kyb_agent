@@ -42,6 +42,7 @@ class KYBProfile(BaseModel):
     ownership: Optional[OwnershipStructure] = None
     documents: List[DocumentEvidence] = Field(default_factory=list)
     risk_assessment: Optional[RiskRating] = None
+    entities_resolved: bool = False
 
 class AgentState(TypedDict):
     # LangGraph state typically uses TypedDict

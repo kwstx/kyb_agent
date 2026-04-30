@@ -5,7 +5,8 @@ from src.agents.nodes import (
     gather_registry_data_node,
     map_ownership_node,
     process_documents_node,
-    assess_risk_node
+    assess_risk_node,
+    resolve_entities_node
 )
 
 def create_kyb_graph():
@@ -21,6 +22,7 @@ def create_kyb_graph():
     workflow.add_node("map_ownership", map_ownership_node)
     workflow.add_node("process_documents", process_documents_node)
     workflow.add_node("assess_risk", assess_risk_node)
+    workflow.add_node("resolve_entities", resolve_entities_node)
 
     # Define edges
     # Start always goes to the supervisor for the initial plan
@@ -41,6 +43,7 @@ def create_kyb_graph():
             "map_ownership": "map_ownership",
             "process_documents": "process_documents",
             "assess_risk": "assess_risk",
+            "resolve_entities": "resolve_entities",
             END: END
         }
     )
@@ -50,5 +53,6 @@ def create_kyb_graph():
     workflow.add_edge("map_ownership", "supervisor")
     workflow.add_edge("process_documents", "supervisor")
     workflow.add_edge("assess_risk", "supervisor")
+    workflow.add_edge("resolve_entities", "supervisor")
 
     return workflow.compile()

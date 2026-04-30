@@ -21,3 +21,6 @@ langchain-qdrant
 transformers
 torch
 pillow
+neo4j
+rapidfuzz
+voyageai
