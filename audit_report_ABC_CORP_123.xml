@@ -1,0 +1,24 @@
+<?xml version="1.0" ?>
+<KYB_AuditLog ProfileID="ABC_CORP_123" ExportTimestamp="2026-05-01T08:19:18.506699">
+  <Metadata>
+    <SystemVersion>1.0.0</SystemVersion>
+    <ComplianceStandard>AML/KYC 2026-V2</ComplianceStandard>
+  </Metadata>
+  <Actions>
+    <Action ID="f65a9fc7-aa17-4540-bd5f-266bb06dfe13">
+      <Timestamp>2026-05-01T08:17:54.667543</Timestamp>
+      <Type>FETCH_REGISTRY_DATA</Type>
+      <RiskTier>Medium</RiskTier>
+      <Authorized>True</Authorized>
+      <Signature>CRYPTO_SIG_XYZ</Signature>
+    </Action>
+    <Action ID="a88b0428-27e0-4722-b5f4-5e80053cc4f7">
+      <Timestamp>2026-05-01T08:19:18.386664</Timestamp>
+      <Type>FETCH_REGISTRY_DATA</Type>
+      <RiskTier>Medium</RiskTier>
+      <Authorized>True</Authorized>
+      <Signature>CRYPTO_SIG_XYZ</Signature>
+    </Action>
+  </Actions>
+  <DigitalSignature Method="RSA-SHA256">EXAMPLE_DIGITAL_SIGNATURE_VALUE_REPLACE_WITH_REAL_HSM_SIGNATURE</DigitalSignature>
+</KYB_AuditLog>
