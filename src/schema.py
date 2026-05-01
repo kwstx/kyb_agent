@@ -1,13 +1,15 @@
 from typing import List, Optional, Dict, Any, Annotated, TypedDict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 import operator
 import datetime
 
 class AudienceSummary(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     compliance_officer: str
     regulator: str
 
 class XAIArtifact(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     chain_of_thought: List[Dict[str, Any]]
     sources: List[Dict[str, str]] # [{ "source": "registry", "citation": "..." }]
     confidence_calibration: Dict[str, Any] # { "score": 0.95, "method": "direct_llm", "uncertainty_factors": [...] }
@@ -16,29 +18,34 @@ class XAIArtifact(BaseModel):
     timestamp: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
 
 class RegistryData(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     company_name: str
-    registration_number: Optional[str]
+    registration_number: Optional[str] = None
     status: str
     jurisdiction: str
-    incorporation_date: Optional[str]
+    incorporation_date: Optional[str] = None
     raw_data: Dict[str, Any]
 
 class OwnershipEntity(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     name: str
     type: str  # Individual, Corporate
     percentage: float
     is_ubo: bool
 
 class OwnershipStructure(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     entities: List[OwnershipEntity]
     layers: int
     resolved: bool
 
 class DocumentChunk(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     text: str
     metadata: Dict[str, Any] # page, doc_type, confidence, etc.
 
 class DocumentEvidence(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     doc_type: str
     findings: List[str]
     confidence: float
@@ -46,11 +53,13 @@ class DocumentEvidence(BaseModel):
     source_files: List[str] = Field(default_factory=list)
 
 class RiskRating(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     score: float # 0.0 to 1.0
     factors: List[str]
     summary: str
 
 class KYBProfile(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     registry: Optional[RegistryData] = None
     ownership: Optional[OwnershipStructure] = None
     documents: List[DocumentEvidence] = Field(default_factory=list)
