@@ -35,11 +35,9 @@ class VectorMemory:
             collections = self.client.get_collections().collections
             exists = any(c.name == self.collection_name for c in collections)
             
-            # Determine correct size
-            if hasattr(self.embeddings, "model") and "3-large" in self.embeddings.model:
-                size = 3072
-            else:
-                size = 1536
+            # Determine correct size dynamically
+            sample_vector = self.embeddings.embed_query("test")
+            size = len(sample_vector)
 
             if not exists:
                 self.client.create_collection(
@@ -50,7 +48,7 @@ class VectorMemory:
                     )
                 )
             else:
-                # Check for dimension mismatch by trying to get collection info
+                # Check for dimension mismatch
                 info = self.client.get_collection(self.collection_name)
                 current_size = info.config.params.vectors.size
                 if current_size != size:

@@ -4,9 +4,11 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from src.schema import AgentState
 import json
 
+from src.agents.nodes import get_default_llm
+
 class Supervisor:
     def __init__(self, model: str = "gpt-4o", temperature: float = 0.0):
-        self.llm = ChatOpenAI(model=model, temperature=temperature)
+        self.llm = get_default_llm(model=model, temperature=temperature)
 
     async def __call__(self, state: AgentState) -> Dict[str, Any]:
         """

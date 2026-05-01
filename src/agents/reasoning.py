@@ -43,7 +43,15 @@ class CriticAgent:
     Uses a faster model (Gemini 3 Flash) to control costs.
     """
     def __init__(self, model_name: str = "gemini-1.5-flash", temperature: float = 0.0):
-        self.llm = ChatGoogleGenerativeAI(model=model_name, temperature=temperature)
+        if os.getenv("OPENAI_API_KEY") == "ollama":
+            self.llm = ChatOpenAI(
+                model=model_name,
+                openai_api_base=os.getenv("OPENAI_API_BASE", "http://localhost:11434/v1"),
+                openai_api_key="ollama",
+                temperature=temperature
+            )
+        else:
+            self.llm = ChatGoogleGenerativeAI(model=model_name, temperature=temperature)
     
     async def evaluate_step(self, step: ReasoningStep, context: Dict[str, Any], jurisdiction: str) -> str:
         # Simulate retrieval from a vector database of jurisdiction-specific rules

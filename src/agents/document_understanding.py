@@ -34,13 +34,22 @@ class DocumentUnderstandingAgent:
         self.client = QdrantClient(vector_store_url)
         self.collection_name = "document_chunks"
         
-        # Create collection if it doesn't exist
+        # Determine embedding dimension
+        sample_embedded = self.embeddings.embed_query("test")
+        dimension = len(sample_embedded)
+
+        # Create collection if it doesn't exist, or handle mismatch
         try:
-            self.client.get_collection(self.collection_name)
+            info = self.client.get_collection(self.collection_name)
+            current_size = info.config.params.vectors.size
+            if current_size != dimension:
+                print(f"Warning: Dimension mismatch in Qdrant ({current_size} != {dimension}). Recreating.")
+                self.client.delete_collection(self.collection_name)
+                raise Exception("Mismatch")
         except Exception:
             self.client.create_collection(
                 collection_name=self.collection_name,
-                vectors_config=VectorParams(size=1536, distance=Distance.COSINE),
+                vectors_config=VectorParams(size=dimension, distance=Distance.COSINE),
             )
             
         self.vector_store = QdrantVectorStore(
