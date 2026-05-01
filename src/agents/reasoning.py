@@ -84,14 +84,25 @@ class CriticAgent:
         }
         return rules_db.get(jurisdiction, "Identify all Ultimate Beneficial Owners (UBOs). Check global sanctions lists. Verify legal incorporation and operational status.")
 
+import os
+
 class ReasoningAgent:
     """
     The core reasoning agent utilizing frontier models for complex planning and synthesis.
     Implements a ReAct loop with self-critique and Tree-of-Thoughts branching.
     """
     def __init__(self, frontier_model: str = "gpt-4o", critic_model: str = "gemini-1.5-flash"):
-        self.llm = ChatOpenAI(model=frontier_model)
-        self.critic = CriticAgent(model_name=critic_model)
+        if os.getenv("OPENAI_API_KEY") == "ollama":
+            self.llm = ChatOpenAI(
+                model="llama3",
+                openai_api_base=os.getenv("OPENAI_API_BASE", "http://localhost:11434/v1"),
+                openai_api_key="ollama"
+            )
+            # Use phi3 for the critic as it's lightweight and already present
+            self.critic = CriticAgent(model_name="phi3")
+        else:
+            self.llm = ChatOpenAI(model=frontier_model)
+            self.critic = CriticAgent(model_name=critic_model)
 
     async def cross_reference(self, registry_data: RegistryData, document_facts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

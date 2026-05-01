@@ -7,10 +7,28 @@ from qdrant_client.http.models import Distance, VectorParams
 from src.tools.document import ExtractionResult
 import uuid
 
+import os
+from langchain_community.embeddings import OllamaEmbeddings
+
 class DocumentUnderstandingAgent:
     def __init__(self, vector_store_url: str = ":memory:"):
-        self.llm = ChatOpenAI(model="gpt-4o")
-        self.embeddings = OpenAIEmbeddings()
+        if os.getenv("OPENAI_API_KEY") == "ollama":
+            self.llm = ChatOpenAI(
+                model="llama3",
+                openai_api_base=os.getenv("OPENAI_API_BASE", "http://localhost:11434/v1"),
+                openai_api_key="ollama"
+            )
+            self.embeddings = OllamaEmbeddings(
+                model="phi3",
+                base_url=os.getenv("OPENAI_API_BASE", "http://localhost:11434/v1").replace("/v1", "")
+            )
+        else:
+            self.llm = ChatOpenAI(model="gpt-4o")
+            try:
+                self.embeddings = OpenAIEmbeddings()
+            except Exception:
+                print("Warning: Could not initialize OpenAIEmbeddings in DocumentUnderstandingAgent.")
+                self.embeddings = None
         
         # Initialize Qdrant client
         self.client = QdrantClient(vector_store_url)
@@ -28,7 +46,7 @@ class DocumentUnderstandingAgent:
         self.vector_store = QdrantVectorStore(
             client=self.client,
             collection_name=self.collection_name,
-            embeddings=self.embeddings,
+            embedding=self.embeddings,
         )
 
     async def analyze_and_index(self, extraction: ExtractionResult, doc_id: str):

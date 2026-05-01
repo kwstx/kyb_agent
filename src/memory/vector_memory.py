@@ -12,7 +12,18 @@ class VectorMemory:
             url=os.getenv("QDRANT_URL", "http://localhost:6333"),
             api_key=os.getenv("QDRANT_API_KEY")
         )
-        self.embeddings = OpenAIEmbeddings()
+        if os.getenv("OPENAI_API_KEY") == "ollama":
+            from langchain_community.embeddings import OllamaEmbeddings
+            self.embeddings = OllamaEmbeddings(
+                model="phi3",
+                base_url=os.getenv("OPENAI_API_BASE", "http://localhost:11434/v1").replace("/v1", "")
+            )
+        else:
+            try:
+                self.embeddings = OpenAIEmbeddings()
+            except Exception:
+                print("Warning: Could not initialize OpenAIEmbeddings. Vector memory will be restricted.")
+                self.embeddings = None
         self._ensure_collection()
 
     def _ensure_collection(self):

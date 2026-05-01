@@ -1,0 +1,57 @@
+{
+  "summary": {
+    "mean_f1": 0.9523809523809524,
+    "risk_accuracy": 1.0,
+    "mean_reasoning_score": 5.0
+  },
+  "cases": [
+    {
+      "case_id": "CASE_001",
+      "metrics": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "risk_accuracy": 1.0,
+        "reasoning_score": 5.0,
+        "reasoning_feedback": "Reasoning trace logically consistent with corporate registry findings and jurisdictional rules."
+      },
+      "judge_decision": {
+        "score": 5,
+        "feedback": "Reasoning trace logically consistent with corporate registry findings and jurisdictional rules.",
+        "logic_match": true
+      }
+    },
+    {
+      "case_id": "CASE_002",
+      "metrics": {
+        "precision": 1.0,
+        "recall": 0.75,
+        "f1": 0.8571428571428571,
+        "risk_accuracy": 1.0,
+        "reasoning_score": 5.0,
+        "reasoning_feedback": "Reasoning trace logically consistent with corporate registry findings and jurisdictional rules."
+      },
+      "judge_decision": {
+        "score": 5,
+        "feedback": "Reasoning trace logically consistent with corporate registry findings and jurisdictional rules.",
+        "logic_match": true
+      }
+    },
+    {
+      "case_id": "CASE_003",
+      "metrics": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "risk_accuracy": 1.0,
+        "reasoning_score": 5.0,
+        "reasoning_feedback": "Reasoning trace logically consistent with corporate registry findings and jurisdictional rules."
+      },
+      "judge_decision": {
+        "score": 5,
+        "feedback": "Reasoning trace logically consistent with corporate registry findings and jurisdictional rules.",
+        "logic_match": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+[
+  {
+    "case_id": "CASE_001",
+    "description": "Simple Delaware Corp, Clear Ownership",
+    "input": {
+      "company_query": "TechPioneer Solutions Inc",
+      "registration_number": "TP-123456",
+      "jurisdiction": "Delaware"
+    },
+    "ground_truth": {
+      "ownership": {
+        "entities": [
+          {"name": "Alice Johnson", "type": "Individual", "percentage": 75.0, "is_ubo": true},
+          {"name": "Bob Smith", "type": "Individual", "percentage": 25.0, "is_ubo": true}
+        ],
+        "layers": 1
+      },
+      "risk_level": "Low",
+      "risk_score_range": [0.0, 0.3],
+      "sanctions_status": "Clear"
+    }
+  },
+  {
+    "case_id": "CASE_002",
+    "description": "Complex Cayman Structure, Layered Ownership",
+    "input": {
+      "company_query": "Global Ventures Holding Ltd",
+      "registration_number": "GV-888999",
+      "jurisdiction": "Cayman Islands"
+    },
+    "ground_truth": {
+      "ownership": {
+        "entities": [
+          {"name": "Shell Co A", "type": "Corporate", "percentage": 50.0, "is_ubo": false},
+          {"name": "Shell Co B", "type": "Corporate", "percentage": 50.0, "is_ubo": false},
+          {"name": "Dmitry Volkov", "type": "Individual", "percentage": 50.0, "is_ubo": true},
+          {"name": "Elena Petrova", "type": "Individual", "percentage": 50.0, "is_ubo": true}
+        ],
+        "layers": 3
+      },
+      "risk_level": "Medium",
+      "risk_score_range": [0.4, 0.7],
+      "sanctions_status": "Clear"
+    }
+  },
+  {
+    "case_id": "CASE_003",
+    "description": "High Risk, Sanctioned Entity Link",
+    "input": {
+      "company_query": "Amber Road Logistics",
+      "registration_number": "ARL-777",
+      "jurisdiction": "Singapore"
+    },
+    "ground_truth": {
+      "ownership": {
+        "entities": [
+          {"name": "Igor Petrov", "type": "Individual", "percentage": 40.0, "is_ubo": true},
+          {"name": "Northern Star Export", "type": "Corporate", "percentage": 60.0, "is_ubo": false}
+        ],
+        "layers": 2
+      },
+      "risk_level": "High",
+      "risk_score_range": [0.8, 1.0],
+      "sanctions_status": "Sanctioned Entity Linked"
+    }
+  }
+]
