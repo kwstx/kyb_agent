@@ -1,0 +1,32 @@
+{
+  "consistency": [
+    {
+      "temp": 0.0,
+      "risk_score_std": 0.0,
+      "entity_overlap_mean": 1.0,
+      "reasoning_length_variance": 0.0
+    },
+    {
+      "temp": 0.5,
+      "risk_score_std": 0.017533891868891337,
+      "entity_overlap_mean": 1.0,
+      "reasoning_length_variance": 0.15999999999999998
+    },
+    {
+      "temp": 1.0,
+      "risk_score_std": 0.06010855880114437,
+      "entity_overlap_mean": 0.9,
+      "reasoning_length_variance": 0.5599999999999999
+    }
+  ],
+  "regression": {
+    "gpt-4o": {
+      "avg_f1": 1.0,
+      "risk_accuracy": 1.0
+    },
+    "gpt-3.5-turbo": {
+      "avg_f1": 0.8000000000000002,
+      "risk_accuracy": 0.8000000000000002
+    }
+  }
+}

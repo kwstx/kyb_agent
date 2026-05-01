@@ -10,14 +10,22 @@ import os
 from langchain_openai import ChatOpenAI
 
 # Configuration for Ollama vs OpenAI
-if os.getenv("OPENAI_API_KEY") == "ollama":
-    llm = ChatOpenAI(
-        model="llama3",
-        openai_api_base=os.getenv("OPENAI_API_BASE", "http://localhost:11434/v1"),
-        openai_api_key="ollama"
-    )
-else:
-    llm = ChatOpenAI(model="gpt-4o")
+def get_default_llm(model="gpt-4o", temperature=0.0):
+    if os.getenv("OPENAI_API_KEY") == "ollama":
+        return ChatOpenAI(
+            model="llama3",
+            openai_api_base=os.getenv("OPENAI_API_BASE", "http://localhost:11434/v1"),
+            openai_api_key="ollama",
+            temperature=temperature
+        )
+    else:
+        return ChatOpenAI(model=model, temperature=temperature)
+
+llm = get_default_llm()
+
+def set_llm(new_llm):
+    global llm
+    llm = new_llm
 
 er_agent = EntityResolutionAgent()
 vector_memory = VectorMemory()

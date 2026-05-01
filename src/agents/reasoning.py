@@ -42,8 +42,8 @@ class CriticAgent:
     A lightweight agent designed for rapid validation and regulatory alignment checks.
     Uses a faster model (Gemini 3 Flash) to control costs.
     """
-    def __init__(self, model_name: str = "gemini-1.5-flash"):
-        self.llm = ChatGoogleGenerativeAI(model=model_name)
+    def __init__(self, model_name: str = "gemini-1.5-flash", temperature: float = 0.0):
+        self.llm = ChatGoogleGenerativeAI(model=model_name, temperature=temperature)
     
     async def evaluate_step(self, step: ReasoningStep, context: Dict[str, Any], jurisdiction: str) -> str:
         # Simulate retrieval from a vector database of jurisdiction-specific rules
@@ -91,18 +91,19 @@ class ReasoningAgent:
     The core reasoning agent utilizing frontier models for complex planning and synthesis.
     Implements a ReAct loop with self-critique and Tree-of-Thoughts branching.
     """
-    def __init__(self, frontier_model: str = "gpt-4o", critic_model: str = "gemini-1.5-flash"):
+    def __init__(self, frontier_model: str = "gpt-4o", critic_model: str = "gemini-1.5-flash", temperature: float = 0.0):
         if os.getenv("OPENAI_API_KEY") == "ollama":
             self.llm = ChatOpenAI(
                 model="llama3",
                 openai_api_base=os.getenv("OPENAI_API_BASE", "http://localhost:11434/v1"),
-                openai_api_key="ollama"
+                openai_api_key="ollama",
+                temperature=temperature
             )
             # Use phi3 for the critic as it's lightweight and already present
-            self.critic = CriticAgent(model_name="phi3")
+            self.critic = CriticAgent(model_name="phi3", temperature=temperature)
         else:
-            self.llm = ChatOpenAI(model=frontier_model)
-            self.critic = CriticAgent(model_name=critic_model)
+            self.llm = ChatOpenAI(model=frontier_model, temperature=temperature)
+            self.critic = CriticAgent(model_name=critic_model, temperature=temperature)
 
     async def cross_reference(self, registry_data: RegistryData, document_facts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

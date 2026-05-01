@@ -5,8 +5,8 @@ from src.schema import AgentState
 import json
 
 class Supervisor:
-    def __init__(self, model: str = "gpt-4o"):
-        self.llm = ChatOpenAI(model=model)
+    def __init__(self, model: str = "gpt-4o", temperature: float = 0.0):
+        self.llm = ChatOpenAI(model=model, temperature=temperature)
 
     async def __call__(self, state: AgentState) -> Dict[str, Any]:
         """

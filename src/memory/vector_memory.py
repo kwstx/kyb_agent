@@ -28,18 +28,43 @@ class VectorMemory:
 
     def _ensure_collection(self):
         try:
+            if not self.embeddings:
+                self.client = None
+                return
+
             collections = self.client.get_collections().collections
             exists = any(c.name == self.collection_name for c in collections)
+            
+            # Determine correct size
+            if hasattr(self.embeddings, "model") and "3-large" in self.embeddings.model:
+                size = 3072
+            else:
+                size = 1536
+
             if not exists:
                 self.client.create_collection(
                     collection_name=self.collection_name,
                     vectors_config=models.VectorParams(
-                        size=1536,  # OpenAI embedding size
+                        size=size,
                         distance=models.Distance.COSINE
                     )
                 )
+            else:
+                # Check for dimension mismatch by trying to get collection info
+                info = self.client.get_collection(self.collection_name)
+                current_size = info.config.params.vectors.size
+                if current_size != size:
+                    print(f"Warning: Dimension mismatch in Qdrant ({current_size} != {size}). Recreating collection.")
+                    self.client.delete_collection(self.collection_name)
+                    self.client.create_collection(
+                        collection_name=self.collection_name,
+                        vectors_config=models.VectorParams(
+                            size=size,
+                            distance=models.Distance.COSINE
+                        )
+                    )
         except Exception as e:
-            print(f"Warning: Could not connect to Qdrant: {e}. Vector memory will be disabled.")
+            print(f"Warning: Could not connect to or configure Qdrant: {e}. Vector memory will be disabled.")
             self.client = None
 
     def add_case(self, profile_data: Dict[str, Any], metadata: Dict[str, Any]):
